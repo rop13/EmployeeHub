@@ -4,30 +4,26 @@ declare(strict_types=1);
 
 namespace App\OAuth\Application\Command;
 
-use App\OAuth\Domain\OAuthClient;
-use League\Bundle\OAuth2ServerBundle\Manager\ClientManagerInterface;
-use League\Bundle\OAuth2ServerBundle\OAuth2Grants;
-use League\Bundle\OAuth2ServerBundle\ValueObject\Grant;
-use League\Bundle\OAuth2ServerBundle\ValueObject\RedirectUri;
+use App\OAuth\Application\Service\RegisterOAuthClientService;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
-use Symfony\Component\Uid\Uuid;
 
 /**
  * Registers a first-party OAuth2 client (e.g. a future "Performance
- * Reviews" app) for the Authorization Code + PKCE flow. No admin UI for
- * client registration yet — that's Slice 3 — so, mirroring
- * App\Tenant\Application\Command\SeedCompanyCommand's single-purpose,
- * operator-run pattern, this command is the only way to register one for
- * now.
+ * Reviews" app) for the Authorization Code + PKCE flow from the console.
+ * Slice 3 added an equivalent admin UI
+ * (App\OAuth\UI\Http\Controller\OAuthClientController), platform-admin-only
+ * — both this command and that controller delegate the actual
+ * id/secret/hashing/persistence work to RegisterOAuthClientService so the
+ * two entry points can never drift.
  *
  * Only the authorization_code and refresh_token grants are ever
- * registered for a client here — this app never issues client_credentials
- * or password-grant clients, and the authorization_server config
+ * registered for a client — this app never issues client_credentials or
+ * password-grant clients, and the authorization_server config
  * (config/packages/league_oauth2_server.yaml) disables those grant types
  * globally too, as defense in depth.
  *
@@ -43,7 +39,7 @@ use Symfony\Component\Uid\Uuid;
 final class RegisterOAuthClientCommand extends Command
 {
     public function __construct(
-        private readonly ClientManagerInterface $clientManager,
+        private readonly RegisterOAuthClientService $registerOAuthClientService,
     ) {
         parent::__construct();
     }
@@ -63,36 +59,17 @@ final class RegisterOAuthClientCommand extends Command
         $redirectUriArgument = $this->requiredStringArgument($input, 'redirect-uri');
 
         try {
-            $redirectUri = new RedirectUri($redirectUriArgument);
+            $registered = $this->registerOAuthClientService->register($name, $redirectUriArgument);
         } catch (\RuntimeException $exception) {
             $io->error($exception->getMessage());
 
             return Command::FAILURE;
         }
 
-        $identifier = Uuid::v4()->toRfc4122();
-        $plainSecret = bin2hex(random_bytes(32));
-        // password_hash() with PASSWORD_BCRYPT only ever returns a string
-        // (or throws) on PHP 8.4 — no false-return branch to guard here.
-        $hashedSecret = password_hash($plainSecret, PASSWORD_BCRYPT);
-
-        $client = new OAuthClient($name, $identifier, $hashedSecret);
-        $client->setActive(true);
-        // Never allowed: this app requires the S256 PKCE challenge method
-        // for every client (see AutoApproveAuthorizationListener).
-        $client->setAllowPlainTextPkce(false);
-        $client->setRedirectUris($redirectUri);
-        $client->setGrants(
-            new Grant(OAuth2Grants::AUTHORIZATION_CODE),
-            new Grant(OAuth2Grants::REFRESH_TOKEN),
-        );
-
-        $this->clientManager->save($client);
-
         $io->success(sprintf('Registered OAuth2 client "%s".', $name));
         $io->table(
             ['Client ID', 'Client secret (shown once — save it now)'],
-            [[$identifier, $plainSecret]]
+            [[$registered->client->getIdentifier(), $registered->plainSecret]]
         );
         $io->warning('This secret cannot be recovered after this. Re-register the client if it is lost.');
 

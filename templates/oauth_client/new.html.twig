@@ -1,0 +1,27 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Register OAuth2 client — EmployeeHub{% endblock %}
+
+{% block body %}
+<nav class="navbar navbar-expand navbar-light bg-light border-bottom mb-4">
+    <div class="container">
+        <a href="{{ path('app_dashboard') }}" class="navbar-brand"><i class="bi bi-person-badge"></i> EmployeeHub</a>
+    </div>
+</nav>
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <h1 class="h4 mb-3">Register OAuth2 client</h1>
+            <div class="card">
+                <div class="card-body">
+                    {{ form_start(form) }}
+                        {{ form_row(form.name) }}
+                        {{ form_row(form.redirectUri) }}
+                        <button type="submit" class="btn btn-primary">Register client</button>
+                    {{ form_end(form) }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

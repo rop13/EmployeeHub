@@ -25,6 +25,21 @@ use Symfony\Component\Validator\Constraints as Assert;
  * A two-tier role system only (ROLE_ADMIN, ROLE_EMPLOYEE) — no manager
  * self-reference, no team. If a third tier or resource-level authorization
  * becomes a real need, that's the point to revisit this.
+ *
+ * $platformAdmin is deliberately NOT a third value of $role/VALID_ROLES.
+ * $role is company-scoped standing (employee vs. admin-of-my-company);
+ * $platformAdmin is an orthogonal, platform-wide capability (see
+ * App\OAuth\UI\Http\Controller\OAuthClientController's class docblock for
+ * why OAuth2 client registration specifically needs this: OAuthClient is
+ * not tenant-scoped, so gating it on plain ROLE_ADMIN would let any
+ * company's admin register a client able to harvest identity data for
+ * every OTHER company's people too, once any of them authorized it). The
+ * two concepts stay independently settable and independently checked —
+ * a Person can be a company ROLE_ADMIN, a platform admin, both, or
+ * neither. Grantable only via the app:grant-platform-admin console
+ * command — never exposed in PersonType or any UI, so a company admin
+ * managing their own company's people can never grant this to themselves
+ * or anyone else through the normal person-management screens.
  */
 #[ORM\Entity(repositoryClass: PersonRepository::class)]
 #[ORM\HasLifecycleCallbacks]
@@ -73,6 +88,9 @@ class Person implements TenantOwnedInterface, UserInterface, PasswordAuthenticat
 
     #[ORM\Column]
     private bool $isActive = true;
+
+    #[ORM\Column]
+    private bool $platformAdmin = false;
 
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE)]
     private ?\DateTimeImmutable $createdAt = null;
@@ -181,10 +199,19 @@ class Person implements TenantOwnedInterface, UserInterface, PasswordAuthenticat
     {
         // Hierarchical: an admin can do everything an employee can — one
         // role field, not a set the caller has to reason about combining.
-        return match ($this->role) {
+        $roles = match ($this->role) {
             self::ROLE_ADMIN => ['ROLE_ADMIN', 'ROLE_EMPLOYEE'],
             default => ['ROLE_EMPLOYEE'],
         };
+
+        // Orthogonal to $role entirely: a platform admin keeps whatever
+        // their own company-scoped standing already grants them, on top
+        // of this platform-wide capability.
+        if ($this->platformAdmin) {
+            $roles[] = 'ROLE_PLATFORM_ADMIN';
+        }
+
+        return $roles;
     }
 
     /**
@@ -215,6 +242,22 @@ class Person implements TenantOwnedInterface, UserInterface, PasswordAuthenticat
     public function setIsActive(bool $isActive): static
     {
         $this->isActive = $isActive;
+        return $this;
+    }
+
+    public function isPlatformAdmin(): bool
+    {
+        return $this->platformAdmin;
+    }
+
+    /**
+     * Deliberately not wired into PersonType — see this property's
+     * class-level docblock. Only App\People\Application\Command\
+     * GrantPlatformAdminCommand calls this.
+     */
+    public function setPlatformAdmin(bool $platformAdmin): static
+    {
+        $this->platformAdmin = $platformAdmin;
         return $this;
     }
 

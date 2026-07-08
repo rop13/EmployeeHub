@@ -12,6 +12,11 @@
                     <i class="bi bi-people"></i> People
                 </a>
             {% endif %}
+            {% if is_granted('ROLE_PLATFORM_ADMIN') %}
+                <a href="{{ path('app_oauth_client_index') }}" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-key"></i> OAuth2 clients
+                </a>
+            {% endif %}
             <span class="text-muted">{{ person.fullName }} · {{ person.company.name }}</span>
             <a href="{{ path('app_logout') }}" class="btn btn-sm btn-outline-secondary">Log out</a>
         </div>
