@@ -29,3 +29,9 @@ services:
     # imported after config/packages/*.yaml (where the bundle's own
     # alias is set), so this definition wins.
     League\OAuth2\Server\Repositories\ClientRepositoryInterface: '@App\OAuth\Infrastructure\Security\HashedSecretClientRepository'
+
+    # league/oauth2-server-bundle's own client-creation/update console
+    # commands are disabled via a compiler pass — see
+    # src/Kernel.php::build() — rather than redefined here, since a full
+    # redefinition loses the bundle's own bound constructor arguments
+    # (e.g. $clientFqcn) and breaks autowiring.
