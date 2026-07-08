@@ -1,0 +1,57 @@
+security:
+    # https://symfony.com/doc/current/security.html#registering-the-user-hashing-passwords
+    password_hashers:
+        Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface: 'auto'
+
+    # https://symfony.com/doc/current/security.html#loading-the-user-the-user-provider
+    providers:
+        people:
+            entity:
+                class: App\People\Domain\Person
+                # PersonRepository implements UserLoaderInterface itself
+                # (see its loadUserByIdentifier()) — Symfony uses that
+                # instead of a plain property lookup because email is only
+                # unique per company, not globally.
+
+    firewalls:
+        dev:
+            # Ensure dev tools and static assets are always allowed. Uses
+            # "static" (not "assets") because AssetMapper's public_prefix
+            # was moved to /static/ (see config/packages/asset_mapper.yaml)
+            # — this is the same fix AssetManagement's Slice 2 had to make
+            # after discovering the framework default of "/assets/" here
+            # silently strips security from any bounded context that also
+            # wants that URL space. EmployeeHub adopts the fix from the
+            # start rather than reintroducing the same bug.
+            pattern: ^/(_profiler|_wdt|static|build)/
+            security: false
+        main:
+            lazy: true
+            provider: people
+            user_checker: App\People\Infrastructure\Security\PersonUserChecker
+
+            form_login:
+                login_path: app_login
+                check_path: app_login
+                enable_csrf: true
+                default_target_path: app_dashboard
+
+            logout:
+                path: app_logout
+                target: app_login
+
+    # Note: Only the *first* matching rule is applied
+    access_control:
+        - { path: ^/login, roles: PUBLIC_ACCESS }
+        - { path: ^/, roles: ROLE_EMPLOYEE }
+
+when@test:
+    security:
+        password_hashers:
+            # Password hashers are resource-intensive by design to ensure security.
+            # In tests, it's safe to reduce their cost to improve performance.
+            Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface:
+                algorithm: auto
+                cost: 4 # Lowest possible value for bcrypt
+                time_cost: 3 # Lowest possible value for argon
+                memory_cost: 10 # Lowest possible value for argon

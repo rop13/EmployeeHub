@@ -1,0 +1,20 @@
+framework:
+    asset_mapper:
+        # The paths to make available to the asset mapper.
+        paths:
+            - assets/
+        missing_import_mode: strict
+        # Default is "/assets/", which collides with Symfony's dev
+        # firewall's public-path exemption pattern
+        # (^/(_profiler|_wdt|assets|build)/) — a request under /assets/
+        # would silently bypass the firewall's access_control entirely.
+        # AssetManagement's own Slice 2 hit this bug for real; EmployeeHub
+        # adopts that fix (public_prefix: /static/, and the dev firewall
+        # pattern in config/packages/security.yaml matching "static" not
+        # "assets") from the first commit instead of reintroducing it.
+        public_prefix: /static/
+
+when@prod:
+    framework:
+        asset_mapper:
+            missing_import_mode: warn

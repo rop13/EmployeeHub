@@ -1,0 +1,65 @@
+doctrine:
+    dbal:
+        url: '%env(resolve:DATABASE_URL)%'
+
+        # IMPORTANT: You MUST configure your server version,
+        # either here or in the DATABASE_URL env var (see .env file)
+        #server_version: '16'
+
+        profiling_collect_backtrace: '%kernel.debug%'
+        types:
+            uuid: Symfony\Bridge\Doctrine\Types\UuidType
+    orm:
+        validate_xml_mapping: true
+        naming_strategy: doctrine.orm.naming_strategy.underscore
+        identity_generation_preferences:
+            Doctrine\DBAL\Platforms\PostgreSQLPlatform: identity
+        auto_mapping: true
+        mappings:
+            # One block per bounded context's Domain/ folder — add a new
+            # block here whenever a new context gets its own entities.
+            Tenant:
+                type: attribute
+                is_bundle: false
+                dir: '%kernel.project_dir%/src/Tenant/Domain'
+                prefix: 'App\Tenant\Domain'
+                alias: Tenant
+            People:
+                type: attribute
+                is_bundle: false
+                dir: '%kernel.project_dir%/src/People/Domain'
+                prefix: 'App\People\Domain'
+                alias: People
+        filters:
+            # See AssetManagement's src/SharedKernel/Tenancy (itself ported
+            # from LeaveFlow's docs/adr/2026-07-06-multi-tenancy-strategy.md)
+            # — the same mechanism, its third occurrence. Disabled by
+            # default; App\SharedKernel\Tenancy\TenantScope enables it per-
+            # request once the current company is known.
+            company_filter:
+                class: App\SharedKernel\Tenancy\CompanyFilter
+                enabled: false
+
+when@test:
+    doctrine:
+        dbal:
+            # "TEST_TOKEN" is typically set by ParaTest
+            dbname_suffix: '_test%env(default::TEST_TOKEN)%'
+
+when@prod:
+    doctrine:
+        orm:
+            query_cache_driver:
+                type: pool
+                pool: doctrine.system_cache_pool
+            result_cache_driver:
+                type: pool
+                pool: doctrine.result_cache_pool
+
+    framework:
+        cache:
+            pools:
+                doctrine.result_cache_pool:
+                    adapter: cache.app
+                doctrine.system_cache_pool:
+                    adapter: cache.system

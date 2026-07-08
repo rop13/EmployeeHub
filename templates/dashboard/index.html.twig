@@ -1,0 +1,28 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Dashboard — EmployeeHub{% endblock %}
+
+{% block body %}
+<nav class="navbar navbar-expand navbar-light bg-light border-bottom mb-4">
+    <div class="container">
+        <span class="navbar-brand"><i class="bi bi-person-badge"></i> EmployeeHub</span>
+        <div class="d-flex align-items-center gap-3">
+            {% if is_granted('ROLE_ADMIN') %}
+                <a href="{{ path('app_person_index') }}" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-people"></i> People
+                </a>
+            {% endif %}
+            <span class="text-muted">{{ person.fullName }} · {{ person.company.name }}</span>
+            <a href="{{ path('app_logout') }}" class="btn btn-sm btn-outline-secondary">Log out</a>
+        </div>
+    </div>
+</nav>
+<div class="container">
+    <div class="card mb-4">
+        <div class="card-body">
+            <h1 class="h4">Welcome, {{ person.firstName }}</h1>
+            <p class="text-muted mb-0">Role: {{ person.role }}</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
