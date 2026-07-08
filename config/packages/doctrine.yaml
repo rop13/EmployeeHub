@@ -30,6 +30,12 @@ doctrine:
                 dir: '%kernel.project_dir%/src/People/Domain'
                 prefix: 'App\People\Domain'
                 alias: People
+            OAuth:
+                type: attribute
+                is_bundle: false
+                dir: '%kernel.project_dir%/src/OAuth/Domain'
+                prefix: 'App\OAuth\Domain'
+                alias: OAuth
         filters:
             # See AssetManagement's src/SharedKernel/Tenancy (itself ported
             # from LeaveFlow's docs/adr/2026-07-06-multi-tenancy-strategy.md)
