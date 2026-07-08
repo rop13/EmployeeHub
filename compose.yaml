@@ -1,0 +1,61 @@
+services:
+  database:
+    container_name: employeehub_db
+    image: postgres:${POSTGRES_VERSION:-16}-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-employeehub}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-!ChangeMe!}
+      POSTGRES_USER: ${POSTGRES_USER:-employeehub}
+    ports:
+      - "5436:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-d", "${POSTGRES_DB:-employeehub}", "-U", "${POSTGRES_USER:-employeehub}"]
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    volumes:
+      - database_data:/var/lib/postgresql/data:rw
+
+  php:
+    container_name: employeehub_php
+    build:
+      context: .
+      target: php-fpm-xdebug
+    volumes:
+      - ./:/var/www/symfony
+    depends_on:
+      - database
+      - mailer
+    environment:
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-employeehub}:${POSTGRES_PASSWORD:-!ChangeMe!}@database:5432/${POSTGRES_DB:-employeehub}?serverVersion=${POSTGRES_VERSION:-16}&charset=utf8"
+      # .env.local's smtp://127.0.0.1:1028 is host-relative — inside this
+      # container, 127.0.0.1 is the container itself, not the host running
+      # Mailpit. "mailer" resolves via the compose network; 1025 is
+      # Mailpit's un-remapped internal SMTP port (1028 is only the
+      # host-side mapping).
+      MAILER_DSN: "smtp://mailer:1025"
+
+  nginx:
+    container_name: employeehub_nginx
+    image: nginx:stable-alpine
+    ports:
+      - '8083:80'
+    volumes:
+      - ./:/var/www/symfony
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - php
+      - database
+
+  mailer:
+    container_name: employeehub_mailer
+    image: axllent/mailpit
+    ports:
+      - "1028:1025"
+      - "8028:8025"
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+
+volumes:
+  database_data:
