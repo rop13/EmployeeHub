@@ -1,0 +1,72 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}OAuth2 clients — EmployeeHub{% endblock %}
+
+{% block body %}
+<nav class="navbar navbar-expand navbar-light bg-light border-bottom mb-4">
+    <div class="container">
+        <a href="{{ path('app_dashboard') }}" class="navbar-brand"><i class="bi bi-person-badge"></i> EmployeeHub</a>
+    </div>
+</nav>
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h4 mb-0">OAuth2 clients</h1>
+        <a href="{{ path('app_oauth_client_new') }}" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-circle"></i> Register client
+        </a>
+    </div>
+
+    {% for message in app.flashes('success') %}
+        <div class="alert alert-success">{{ message }}</div>
+    {% endfor %}
+
+    <p class="text-muted small">
+        Client secrets are shown once, at registration time, and never displayed again — see each
+        client's registration confirmation. This list never shows secrets.
+    </p>
+
+    <table class="table table-hover bg-white">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Client ID</th>
+                <th>Redirect URI</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for client in clients %}
+                <tr>
+                    <td>{{ client.name }}</td>
+                    <td><code>{{ client.identifier }}</code></td>
+                    <td>
+                        {% for redirectUri in client.redirectUris %}
+                            <div>{{ redirectUri }}</div>
+                        {% endfor %}
+                    </td>
+                    <td>
+                        {% if client.active %}
+                            <span class="badge text-bg-success">Active</span>
+                        {% else %}
+                            <span class="badge text-bg-secondary">Deactivated</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-end">
+                        {% if client.active %}
+                            <form method="post" action="{{ path('app_oauth_client_deactivate', {identifier: client.identifier}) }}" onsubmit="return confirm('Deactivate this client? It will immediately be unable to complete /authorize or /token.');">
+                                <input type="hidden" name="_token" value="{{ csrf_token('deactivate-oauth-client-' ~ client.identifier) }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Deactivate</button>
+                            </form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="5" class="text-center text-muted">No OAuth2 clients registered yet.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
