@@ -78,6 +78,29 @@ final class OAuthClientControllerTest extends WebTestCase
         return $admin;
     }
 
+    private function createPlainEmployee(
+        EntityManagerInterface $entityManager,
+        UserPasswordHasherInterface $passwordHasher,
+        string $email
+    ): Person {
+        $company = new Company();
+        $company->setName('OAuthClientControllerTestEmployeeCo');
+        $entityManager->persist($company);
+
+        $employee = new Person();
+        $employee->setCompany($company);
+        $employee->setFirstName('Eddie');
+        $employee->setLastName('Employee');
+        $employee->setEmail($email);
+        // Default role (ROLE_EMPLOYEE), not even company-admin, and
+        // deliberately NOT platform admin.
+        $employee->setPassword($passwordHasher->hashPassword($employee, 'correct-horse-battery-staple'));
+        $entityManager->persist($employee);
+        $entityManager->flush();
+
+        return $employee;
+    }
+
     private function logIn(KernelBrowser $client, string $email): void
     {
         $crawler = $client->request('GET', '/login');
@@ -322,5 +345,81 @@ final class OAuthClientControllerTest extends WebTestCase
         $untouchedClient = $entityManager->getRepository(OAuthClient::class)->find($clientId);
         self::assertNotNull($untouchedClient);
         self::assertTrue($untouchedClient->isActive());
+    }
+
+    /**
+     * A plain company admin still has ROLE_ADMIN, just not
+     * ROLE_PLATFORM_ADMIN — the case above proves that's not enough. This
+     * proves someone with neither company-admin standing nor
+     * platform-admin standing is refused too, not just company admins.
+     */
+    public function testPlainEmployeeWithNoAdminRoleAtAllGetsForbiddenOnEveryOAuthClientManagementRoute(): void
+    {
+        $client = static::createClient();
+        $container = static::getContainer();
+        $entityManager = $container->get(EntityManagerInterface::class);
+        $passwordHasher = $container->get(UserPasswordHasherInterface::class);
+
+        $this->createPlainEmployee($entityManager, $passwordHasher, 'plain-employee@example.test');
+        $this->logIn($client, 'plain-employee@example.test');
+
+        $client->request('GET', '/oauth-clients');
+        self::assertResponseStatusCodeSame(403);
+
+        $client->request('GET', '/oauth-clients/new');
+        self::assertResponseStatusCodeSame(403);
+
+        $client->request('POST', '/oauth-clients/new', [
+            'register_o_auth_client' => ['name' => 'Should Not Be Created', 'redirectUri' => self::REDIRECT_URI],
+        ]);
+        self::assertResponseStatusCodeSame(403);
+
+        $entityManager->clear();
+        self::assertNull(
+            $entityManager->getRepository(OAuthClient::class)->findOneBy(['name' => 'Should Not Be Created'])
+        );
+    }
+
+    /**
+     * The earlier "plain company admin" deactivate attempt is rejected by
+     * IsGranted before the controller's own CSRF check ever runs — that
+     * proves the role gate, not the CSRF gate. This test authenticates as
+     * a genuine platform admin and submits a missing/wrong token, so it's
+     * the controller's own isCsrfTokenValid() branch that has to reject
+     * it.
+     */
+    public function testDeactivateRejectsAnInvalidCsrfTokenEvenFromAnAuthorizedPlatformAdmin(): void
+    {
+        $client = static::createClient();
+        $container = static::getContainer();
+        $entityManager = $container->get(EntityManagerInterface::class);
+        $passwordHasher = $container->get(UserPasswordHasherInterface::class);
+
+        $this->createPlatformAdmin($entityManager, $passwordHasher, 'platform-admin-csrf@example.test');
+        $this->logIn($client, 'platform-admin-csrf@example.test');
+
+        $crawler = $client->request('GET', '/oauth-clients/new');
+        $form = $crawler->selectButton('Register client')->form([
+            'register_o_auth_client[name]' => 'CSRF Guarded Client',
+            'register_o_auth_client[redirectUri]' => self::REDIRECT_URI,
+        ]);
+        $client->submit($form);
+        self::assertResponseIsSuccessful();
+
+        $entityManager->clear();
+        $oauthClient = $entityManager->getRepository(OAuthClient::class)
+            ->findOneBy(['name' => 'CSRF Guarded Client']);
+        self::assertNotNull($oauthClient);
+        $clientId = $oauthClient->getIdentifier();
+
+        $client->request('POST', sprintf('/oauth-clients/%s/deactivate', $clientId), [
+            '_token' => 'definitely-not-the-real-token',
+        ]);
+        self::assertResponseStatusCodeSame(403);
+
+        $entityManager->clear();
+        $stillActiveClient = $entityManager->getRepository(OAuthClient::class)->find($clientId);
+        self::assertNotNull($stillActiveClient);
+        self::assertTrue($stillActiveClient->isActive());
     }
 }
