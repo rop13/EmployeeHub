@@ -41,7 +41,7 @@ extract the shared pattern at that point, not before.
   roadmap either. It never gets its own local identity model; it
   authenticates entirely against EmployeeHub.
 
-## Phase 1 — identity foundation + OAuth2 provider
+## Phase 1 — identity foundation + OAuth2 provider (complete, 3/3 slices merged)
 
 Built as ordered, MR-sized slices — each one lands, gets a strict review
 pass, and merges before the next starts, same discipline as LeaveFlow's,
@@ -77,11 +77,19 @@ Asset Management's, and the PersonalFinance project's workflow.
    key is encrypted with the same passphrase. `.env`'s own
    `OAUTH_PASSPHRASE=`/`OAUTH_ENCRYPTION_KEY=` lines stay blank, same
    treatment as `APP_SECRET`.
-3. **Minimal admin UI**: register an OAuth2 client (app name, redirect
-   URI, secret) — the concrete thing Performance Reviews needs to exist
-   before it can authenticate against EmployeeHub. Slice 1's admin screens
-   already cover org/person management; this slice only adds client
-   registration.
+3. **Minimal admin UI** — done. Register/list/deactivate an OAuth2 client
+   through a real form, gated on a new `ROLE_PLATFORM_ADMIN` tier rather
+   than the existing tenant-scoped `ROLE_ADMIN` — client registration is a
+   platform-wide capability (a registered client can pull `/api/userinfo`
+   for any person from any company who authorizes it), so gating it on
+   "admin of my own company" would have let any company's admin harvest
+   identity data across every other tenant. `platformAdmin` lives as an
+   independent boolean on `Person`, orthogonal to the tenant-scoped `role`
+   column, grantable only via `app:grant-platform-admin <email>` —
+   console-only, never exposed through `PersonType`'s form. Console
+   (`app:register-oauth-client`) and UI registration share one
+   `RegisterOAuthClientService`, so both paths are identical by
+   construction.
 
 Each slice needs: unit tests on the real domain logic (tenant isolation,
 token/claim shape once Slice 2 lands), functional tests on its critical
