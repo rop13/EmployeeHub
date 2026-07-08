@@ -55,13 +55,28 @@ Asset Management's, and the PersonalFinance project's workflow.
    the identity foundation, not any particular app's business logic). No
    self-serve company signup — a console command seeds a company + its
    first admin; the admin adds people from the app.
-2. **OAuth2 authorization server**: client registration (which apps may
-   request tokens), the Authorization Code + PKCE flow, an `/authorize` +
-   login screen backed by Slice 1's `Person`, token issuance carrying
-   org/user/role claims. Library: `league/oauth2-server` via its
-   maintained Symfony bundle — the exact package/bundle name and maturity
-   need to be confirmed when this slice starts; this is the standard PHP
-   OAuth2 server implementation, not something to hand-roll.
+2. **OAuth2 authorization server** — done. `league/oauth2-server-bundle`
+   (confirmed current/maintained, PHP core-team-coordinated successor to
+   the discontinued `trikoder/oauth2-bundle`). Authorization Code + PKCE
+   flow (PKCE mandatory for every client, not just public ones), `/token`,
+   and a `GET /api/userinfo` resource endpoint returning the token's
+   Person's id/name/email/company/role — chosen over embedding custom JWT
+   claims as the lower-risk, more standard extension point. No consent
+   screen (first-party clients, console-registered only —
+   `app:register-oauth-client`). Client secrets are hashed
+   (`password_hash`/`password_verify`), overriding the bundle's own
+   default plaintext comparison; the bundle's native
+   `create-client`/`update-client` commands (which write plaintext
+   secrets, incompatible with that hashing) are disabled via a compiler
+   pass. RSA keypair for token signing lives at `config/jwt/*.pem`
+   (gitignored); `OAUTH_PASSPHRASE`/`OAUTH_ENCRYPTION_KEY` are real
+   secrets and must never be committed — set them in `.env.local` **and**
+   `.env.test.local` (Symfony does not load `.env.local` when
+   `APP_ENV=test`), then run
+   `bin/console league:oauth2-server:generate-keypair --overwrite` so the
+   key is encrypted with the same passphrase. `.env`'s own
+   `OAUTH_PASSPHRASE=`/`OAUTH_ENCRYPTION_KEY=` lines stay blank, same
+   treatment as `APP_SECRET`.
 3. **Minimal admin UI**: register an OAuth2 client (app name, redirect
    URI, secret) — the concrete thing Performance Reviews needs to exist
    before it can authenticate against EmployeeHub. Slice 1's admin screens

@@ -25,6 +25,25 @@ security:
             # start rather than reintroducing the same bug.
             pattern: ^/(_profiler|_wdt|static|build)/
             security: false
+        # Unauthenticated: anyone (any registered OAuth2 client) must be
+        # able to reach /token to exchange an authorization code — this
+        # is client-authenticated (client_id/client_secret or PKCE), not
+        # session-authenticated, so it sits outside the "main" firewall's
+        # form_login. Matches league/oauth2-server-bundle's own documented
+        # firewall shape (docs/basic-setup.md).
+        oauth2_token:
+            pattern: ^/token$
+            security: false
+        # Stateless, bearer-token-protected resource endpoint(s). Must be
+        # declared before "main" (which has no pattern and would
+        # otherwise swallow every request first) so /api/* goes through
+        # the oauth2 authenticator instead of session-based form_login.
+        oauth2_api:
+            pattern: ^/api
+            security: true
+            stateless: true
+            provider: people
+            oauth2: true
         main:
             lazy: true
             provider: people

@@ -26,3 +26,7 @@ composer.phar
 
 # Local-only dev seed credentials — never committed.
 /LOCAL_CREDENTIALS.md
+
+###> league/oauth2-server-bundle ###
+/config/jwt/*.pem
+###< league/oauth2-server-bundle ###

@@ -1,0 +1,57 @@
+# Private/public RSA keypair (token signing): generate with the bundle's
+# own command, from inside the php container:
+#
+#   docker compose exec php php bin/console league:oauth2-server:generate-keypair
+#
+# This writes config/jwt/private.pem + config/jwt/public.pem. The private
+# key is gitignored (see .gitignore's "league/oauth2-server-bundle"
+# block) — every environment (including a fresh local clone) must
+# generate its own before /token or /api/userinfo will work.
+league_oauth2_server:
+    authorization_server:
+        private_key: '%env(resolve:OAUTH_PRIVATE_KEY)%'
+        private_key_passphrase: '%env(resolve:OAUTH_PASSPHRASE)%'
+        encryption_key: '%env(resolve:OAUTH_ENCRYPTION_KEY)%'
+        # Only the two grants this app actually issues clients for
+        # (see RegisterOAuthClientCommand) are enabled at all — disabling
+        # the rest is defense in depth, not just per-client grant
+        # restriction, for the highest-stakes slice in this portfolio.
+        enable_client_credentials_grant: false
+        enable_password_grant: false
+        enable_implicit_grant: false
+        enable_auth_code_grant: true
+        enable_refresh_token_grant: true
+        # Default (true) kept explicit: still required for public clients
+        # by the library itself. App\OAuth\Infrastructure\EventListener\
+        # AutoApproveAuthorizationListener additionally requires it for
+        # confidential (secret-bearing) clients too, since this app's
+        # clients are always confidential and this library flag alone
+        # would never apply to them.
+        require_code_challenge_for_public_clients: true
+    resource_server:
+        public_key: '%env(resolve:OAUTH_PUBLIC_KEY)%'
+    scopes:
+        available: ['userinfo']
+        default: ['userinfo']
+    persistence:
+        # Bundle's own Doctrine entities/mappings for access tokens,
+        # refresh tokens, and authorization codes — see
+        # docs/basic-setup.md and docs/using-custom-persistence-managers.md
+        # (confirmed from the installed bundle's source): only the client
+        # entity is custom (see client.classname below and
+        # App\OAuth\Domain\OAuthClient), nothing else is reinvented here.
+        doctrine: null
+    client:
+        classname: App\OAuth\Domain\OAuthClient
+
+# Deliberately NOT overridden to in_memory persistence in the test
+# environment (Symfony Flex's recipe scaffolded that override by
+# default; removed here). Symfony's KernelBrowser reboots the kernel
+# (and therefore any in-memory container state) between requests unless
+# explicitly told not to, which would wipe a registered client/auth code
+# between the /authorize, /token, and /api/userinfo steps of the
+# round-trip functional test. Doctrine persistence against the real
+# (DAMA-transaction-wrapped) test database is what every other test in
+# this app already relies on for exactly this reason — keep OAuth
+# consistent with that rather than introducing a second, more fragile
+# persistence story just for tests.
